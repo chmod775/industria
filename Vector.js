@@ -102,6 +102,14 @@ Vector.prototype = {
     }
     return this;
   },
+  normalizeTo(length) {
+    var mag = this.mag();
+    if (mag > 0) {
+      mag = length / mag;
+      this.mult(mag);
+    }
+    return this;
+  },
   limit: function (max) {
     if (this.mag() > max) {
       this.normalize();
