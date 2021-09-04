@@ -5,7 +5,7 @@ let CANVAS_HEIGHT = window.innerHeight-20;
 canvas.width = CANVAS_WIDTH;
 canvas.height = CANVAS_HEIGHT;
 
-let DEBUG = false;
+let DEBUG = true;
 
 window.addEventListener("contextmenu", e => e.preventDefault());
 
@@ -28,6 +28,9 @@ class Dot {
     this.mass = 1;
   }
 
+  freeze() {
+    this.oldpos.setXY(this.pos.x, this.pos.y);
+  }
 
   update() {
     if (this.pinned) return;
@@ -79,15 +82,13 @@ class Stick {
     this.endPoint = p2;
     this.stiffness = 2;
     this.color = '#000';
-    // if the length is not given then calculate the distance based on position
-    if (!length) {
-      this.length = this.startPoint.pos.dist(this.endPoint.pos);
-    } else {
-      this.length = length;
-    }
-
+    this.calculate();
   }
-  
+
+  calculate() {
+    this.length = this.startPoint.pos.dist(this.endPoint.pos);
+  }
+
   update() {
     // calculate the distance between two dots
     let dx = this.endPoint.pos.x - this.startPoint.pos.x;
@@ -134,38 +135,26 @@ class Stick {
 let mod = (a, n) => a - Math.floor(a/n) * n;
 var ang = 0;
 class Pivot {
-  constructor(p1, p2, p3, angle, deadzone) {
-    this.startPoint = p1;
-    this.middlePoint = p2;
-    this.endPoint = p3;
+  constructor(s1, s2, angle, deadzone) {
+    this.startStick = s1;
+    this.endStick = s2;
 
-    this.stiffness = 1;
+    if (this.startStick.endPoint != this.endStick.startPoint) throw 'Sticks not connected';
+
+    this.startPoint = this.startStick.startPoint;
+    this.middlePoint = this.endStick.startPoint;
+    this.endPoint = this.endStick.endPoint;
+
+    this.stiffness = 0.25;
 
     this.deadzone = deadzone ?? 0;
 
     this.color = '#000';
 
-    if (!angle) {
-      let v1 = Vector.sub(this.middlePoint.pos, this.startPoint.pos);
-      let v2 = Vector.sub(this.middlePoint.pos, this.endPoint.pos);
-
-      let ha = v1.heading();
-      let hb = v2.heading();
-      let act_diff = hb - ha;
-      let act_angle = act_diff < 0 ? (2 * Math.PI)+act_diff : act_diff;
-      this.angle = act_angle;
-      
-
-//      console.log(this.startPoint.pos, this.middlePoint.pos, this.endPoint.pos)
-
-      //console.log(v1.heading(), v2.heading(), this.angle);
-      console.log(v1.headingAbs(), v2.headingAbs(), this.angle / Math.PI * 180);
-    } else {
-      this.angle = angle;
-    }
+    this.calculate();
   }
 
-  update() {
+  calculate() {
     let v1 = Vector.sub(this.middlePoint.pos, this.startPoint.pos);
     let v2 = Vector.sub(this.middlePoint.pos, this.endPoint.pos);
 
@@ -173,14 +162,34 @@ class Pivot {
     let hb = v2.heading();
     let act_diff = hb - ha;
     let act_angle = act_diff < 0 ? (2 * Math.PI)+act_diff : act_diff;
+    this.angle = act_angle;
 
-    let diff_angle = (act_angle - this.angle);// * this.stiffness;
+    console.log(v1.headingAbs(), v2.headingAbs(), this.angle / Math.PI * 180);
+  }
+
+  update() {
+    if (this.startPoint.pinned && this.endPoint.pinned) return;
+
+    let dot_S = this.startPoint;
+    let dot_M = this.middlePoint;
+    let dot_E = this.endPoint;
+
+    let v1 = Vector.sub(dot_M.pos, dot_S.pos);
+    let v2 = Vector.sub(dot_M.pos, dot_E.pos);
+
+    let ha = v1.heading();
+    let hb = v2.heading();
+    let act_diff = hb - ha;
+    let act_angle = act_diff < 0 ? (2 * Math.PI)+act_diff : act_diff;
+
+    let diff_angle = (this.angle - act_angle);// * this.stiffness;
     if (Math.abs(diff_angle) < this.deadzone) diff_angle = 0;
-    diff_angle = diff_angle / act_angle * this.stiffness;
+    diff_angle = diff_angle * this.stiffness;
 
     if (DEBUG) {
       console.log('-')
       console.log(v1, v2);
+      console.log(ha / Math.PI * 180, hb / Math.PI * 180);
       console.log(act_angle / Math.PI * 180, this.angle / Math.PI * 180, diff_angle / Math.PI * 180)
     }
 
@@ -189,24 +198,75 @@ class Pivot {
     let m2 = v1.magSq() / m1;
     m1 = v2.magSq() / m1;
 
-    if (this.endPoint.pinned) m1 = 1;
-    if (this.startPoint.pinned) m2 = 1;
+    //let m1 = Math.abs(diff_angle / this.angle);
+    //console.log(m1);
+/*
+    if (dot_E.pinned) m1 = 1;
+    if (dot_S.pinned) m2 = 1;
+*/
 
-    if (!this.startPoint.pinned) {
-      v1.rotate(diff_angle * m1);
+
+    if (dot_S.pinned && dot_E.pinned) return;
+
+    if (dot_S.pinned && !dot_E.pinned) {
+      v1.rotate(-diff_angle * m1);
+      v1.limit(this.startStick.length);
+      dot_M.pos.x = dot_S.pos.x + v1.x;
+      dot_M.pos.y = dot_S.pos.y + v1.y;
+
+      v2.rotate(diff_angle * m2);
+      v2.limit(this.endStick.length);
+      dot_E.pos.x = dot_M.pos.x - v2.x;
+      dot_E.pos.y = dot_M.pos.y - v2.y;
+    }
+
+    if (!dot_S.pinned && dot_E.pinned) {
+      v2.rotate(diff_angle * m2);
+      v2.limit(this.endStick.length);
+      dot_M.pos.x = dot_E.pos.x + v2.x;
+      dot_M.pos.y = dot_E.pos.y + v2.y;
+
+      v1.rotate(-diff_angle * m1);
+      v1.limit(this.startStick.length);
+      dot_S.pos.x = dot_M.pos.x - v1.x;
+      dot_S.pos.y = dot_M.pos.y - v1.y;
+    }
+
+    if (!dot_S.pinned && !dot_E.pinned) {
+      v1.rotate(-diff_angle * m1);
+      v1.limit(this.startStick.length);
+      dot_S.pos.x = dot_M.pos.x - v1.x;
+      dot_S.pos.y = dot_M.pos.y - v1.y;
+
+      v2.rotate(diff_angle * m2);
+      v2.limit(this.endStick.length);
+      dot_E.pos.x = dot_M.pos.x - v2.x;
+      dot_E.pos.y = dot_M.pos.y - v2.y;
+    }
+
+/*
+    dot_S.freeze();
+    dot_M.freeze();
+    dot_E.freeze();
+*/
+/*
+    if (!dot_S.pinned) {
+      v1.rotate(-diff_angle * ( m1));
+      v1.limit(this.startStick.length);
       if (DEBUG)
         console.log(v1);
 
-      this.startPoint.pos.x = this.middlePoint.pos.x - v1.x;
-      this.startPoint.pos.y = this.middlePoint.pos.y - v1.y;
+      dot_S.pos.x = dot_M.pos.x - v1.x;
+      dot_S.pos.y = dot_M.pos.y - v1.y;
     }
 
-    if (!this.endPoint.pinned) {
-      v2.rotate(-diff_angle * m2);
-      this.endPoint.pos.x = this.middlePoint.pos.x - v2.x;
-      this.endPoint.pos.y = this.middlePoint.pos.y - v2.y;
+    if (!dot_E.pinned) {
+      v2.rotate(diff_angle * ( m2));
+      v2.limit(this.endStick.length);
+      dot_E.pos.x = dot_M.pos.x - v2.x;
+      dot_E.pos.y = dot_M.pos.y - v2.y;
     }
-
+*/
 /*
     if (m1 > m2) {
       if (!this.startPoint.pinned) {
@@ -242,6 +302,7 @@ class Entity {
     this.sticks = [];
     this.pivots = [];
     this.iterations = iterations || 16;
+    this.pivotCnt = 0;
   }
 
   pinPoint(p1) {
@@ -260,8 +321,8 @@ class Entity {
     this.sticks.push(new Stick(this.dots[p1], this.dots[p2], length));
   }
 
-  addPivot(p1, p2, p3, angle, deadzone) {
-    this.pivots.push(new Pivot(this.dots[p1], this.dots[p2], this.dots[p3], angle, deadzone));
+  addPivot(s1, s2, angle, deadzone) {
+    this.pivots.push(new Pivot(this.sticks[s1], this.sticks[s2], angle, deadzone));
   }
 
   updatePoints() {
@@ -338,21 +399,11 @@ class Entity {
   update(ctx) {
     this.updatePoints();
 
-    for (let i = 0; i < this.dots.length; i++) {
-      let p1 = this.dots[i];
-      for (let j = 0; j < this.dots.length; j++) {
-        let p2 = this.dots[j];
-        if (p1 != p2) {
-          //p1.
-        }
-      }
-    }
-
-    for (let j = 0; j < this.iterations; j++) {
+      this.updatePivots();
+      for (let j = 0; j < this.iterations; j++) {
       this.updateSticks();
       this.updateContrains();
     }
-    this.updatePivots();
 
     this.pivotCnt = 0;
     this.render(ctx);
@@ -369,8 +420,19 @@ class Entity {
     let idx = this.pivotCnt % this.pivots.length;
     console.log(`Pivot: ${idx} / ${this.pivots.length}`);
     this.pivots[idx].update();
+    this.pivots[idx].color = '#ff0';
+    this.pivots[(idx + this.pivots.length - 1) % this.pivots.length].color = '#000';
     this.pivotCnt++;
     this.render(ctx);
+  }
+
+  recalculate() {
+    for (let i = 0; i < this.sticks.length; i++) {
+      this.sticks[i].calculate();
+    }
+    for (let i = 0; i < this.pivots.length; i++) {
+      this.pivots[i].calculate();
+    }
   }
 }
 
@@ -391,9 +453,9 @@ box.addPivot(0, 1, 2, null, 0);
 box.addPivot(2, 3, 0, null, 0);
 //box.addPivot(3, 0, 1);
 */
-
 let ox = 500, oy = 750;
 
+/*
 box.addDot(ox + -200, oy - 0);
 box.addDot(ox + -200, oy - 125);
 box.addDot(ox + 150, oy - 125);
@@ -401,7 +463,7 @@ box.addDot(ox + 150, oy - 75);
 box.addDot(ox + 50, oy - 75);
 box.addDot(ox + 50, oy - 0);
 
-box.pinPoint(0);
+box.pinPoint(2);
 
 box.addStick(0, 1);
 box.addStick(1, 2);
@@ -416,8 +478,8 @@ box.addPivot(2, 3, 4);
 box.addPivot(3, 4, 5);
 box.addPivot(4, 5, 0);
 box.addPivot(5, 0, 1);
+*/
 
-/*
 let sides = 20;
 let diameter = 100;
 for (var s = 0; s < sides; s++) {
@@ -429,16 +491,20 @@ for (var s = 0; s < sides; s++) {
 
   box.addDot(ox + px, oy - py);
 }
-
-//box.dots[0].pos.x += 1;
+box.dots[0].pos.x += 1;
 box.dots[0].color = '#f00';
 
 for (var s = 0; s < sides; s++)
   box.addStick(s, (s + 1) % sides);
 
-for (var s = 0; s < sides; s++)
-  box.addPivot(s, (s + 1) % sides, (s + 2) % sides);
-*/
+for (var s = 0; s < box.sticks.length; s++)
+    box.addPivot(s, (s + 1) % box.sticks.length);
+
+  box.pinPoint(0);
+//  box.pinPoint(10);
+
+
+let stop = false;
 
 function animate() {
   
@@ -446,16 +512,20 @@ function animate() {
   box.update(ctx);
     
 
-  requestAnimationFrame(animate);
+  if (!stop) requestAnimationFrame(animate);
 }
 //animate();
 box.render(ctx);
+
+function Stop() { stop = true; }
 
 /*
 
 let dot_A = new Dot(0, 0, 0, 0, '#f00');
 let dot_B = new Dot(500, 500, 0, 0, '#0f0');
 let dot_C = new Dot(0, 0, 0, 0, '#00f');
+
+dot_A.pinned = true;
 
 box.dots.push(dot_A);
 box.dots.push(dot_B);
@@ -466,35 +536,92 @@ box.addStick(1, 2);
 
 box.addPivot(0, 1, 2);
 
-canvas.addEventListener("mousedown", function (e) {
-  e.preventDefault();
-  if (e.button == 0) {
-    dot_A.pos.x = e.clientX;
-    dot_A.pos.y = e.clientY;
-  }
-  if (e.button == 2) {
-    dot_C.pos.x = e.clientX;
-    dot_C.pos.y = e.clientY;
-  }
+function correct(angle) {
+  let angle_rad = angle / 180 * Math.PI;
 
-  ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+  let dot_S = dot_A;
+  let dot_M = dot_B;
+  let dot_E = dot_C;
 
-  box.render(ctx);
-
-
-  let v1 = Vector.sub(dot_B.pos, dot_A.pos);
-  let v2 = Vector.sub(dot_B.pos, dot_C.pos);
+  let v1 = Vector.sub(dot_M.pos, dot_S.pos);
+  let v2 = Vector.sub(dot_M.pos, dot_E.pos);
 
   let ha = v1.heading();
   let hb = v2.heading();
 
   let act_diff = ha - hb;
-  act_diff = act_diff < 0 ? (2 * Math.PI)+act_diff : act_diff;
-  //act_diff += (act_diff>180) ? -360 : (act_diff<-180) ? 360 : 0
-  console.log('a', ha / Math.PI * 180)
-  console.log('b', hb / Math.PI * 180)
-  console.log(act_diff / Math.PI * 180)
+  let act_angle = act_diff < 0 ? (2 * Math.PI)+act_diff : act_diff;
 
+  let diff_angle = angle_rad - act_angle;
+  console.log(`Diff: ${diff_angle / Math.PI * 180}`);
+
+  //let m1 = Math.abs(diff_angle / ((2 * Math.PI) - angle_rad));
+  //console.log(m1);
+  
+  let m1 = v1.magSq() + v2.magSq();
+  let m2 = v1.magSq() / m1;
+  m1 = v2.magSq() / m1;
+
+  if (dot_S.pinned && dot_E.pinned) return;
+
+  if (dot_S.pinned && !dot_E.pinned) {
+    v1.rotate(diff_angle * m1);
+    dot_M.pos.x = dot_S.pos.x + v1.x;
+    dot_M.pos.y = dot_S.pos.y + v1.y;
+  
+    v2.rotate(-diff_angle * m2);
+    dot_E.pos.x = dot_M.pos.x - v2.x;
+    dot_E.pos.y = dot_M.pos.y - v2.y;
+  }
+
+  if (!dot_S.pinned && dot_E.pinned) {
+    v2.rotate(-diff_angle * m2);
+    dot_M.pos.x = dot_E.pos.x + v2.x;
+    dot_M.pos.y = dot_E.pos.y + v2.y;
+  
+    v1.rotate(diff_angle * m1);
+    dot_S.pos.x = dot_M.pos.x - v1.x;
+    dot_S.pos.y = dot_M.pos.y - v1.y;
+  }
+
+  if (!dot_S.pinned && !dot_E.pinned) {
+    v1.rotate(diff_angle * m1);
+    dot_S.pos.x = dot_M.pos.x - v1.x;
+    dot_S.pos.y = dot_M.pos.y - v1.y;
+  
+    v2.rotate(-diff_angle * m2);
+    dot_E.pos.x = dot_M.pos.x - v2.x;
+    dot_E.pos.y = dot_M.pos.y - v2.y;
+  }
+
+
+
+  ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+  box.render(ctx);
+}
+
+canvas.addEventListener("mousedown", function (e) {
+  e.preventDefault();
+
+  console.log(e);
+
+  if (e.button == 0) {
+    dot_A.pos.x = e.clientX;
+    dot_A.pos.y = e.clientY;
+    dot_A.freeze();
+  }
+  if (e.button == 2) {
+    dot_C.pos.x = e.clientX;
+    dot_C.pos.y = e.clientY;
+    dot_C.freeze();
+  }
+
+  if (e.ctrlKey)
+    box.recalculate();
+
+  ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+  box.render(ctx);
 
   return false;
 }, false);
