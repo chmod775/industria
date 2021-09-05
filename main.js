@@ -37,7 +37,7 @@ class Dot {
 
     let vel = Vector.sub(this.pos, this.oldpos);
     vel.mult(this.friction);
-
+/*
     // if the point touches the ground set groundFriction
     if (this.pos.y >= CANVAS_HEIGHT - this.radius && vel.magSq() > 0.000001) {
       var m = vel.mag();
@@ -45,7 +45,7 @@ class Dot {
       vel.y /= m;
       vel.mult(m * this.groundFriction);
     }
-    
+    */
     this.oldpos.setXY(this.pos.x, this.pos.y);
     this.pos.add(vel);
     this.pos.add(this.gravity);
@@ -184,7 +184,9 @@ class Pivot {
 
     let diff_angle = (this.angle - act_angle);// * this.stiffness;
     if (Math.abs(diff_angle) < this.deadzone) diff_angle = 0;
-    diff_angle = diff_angle * this.stiffness;
+
+    let perc_diff = Math.abs(diff_angle / this.angle) * 5;
+    //console.log(perc_diff);
 
     if (DEBUG) {
       console.log('-')
@@ -207,42 +209,64 @@ class Pivot {
 
 
     if (dot_S.pinned && dot_E.pinned) return;
-
+/*
     if (dot_S.pinned && !dot_E.pinned) {
       v1.rotate(-diff_angle * m1);
-      v1.limit(this.startStick.length);
+      //v1.limit(this.startStick.length);
       dot_M.pos.x = dot_S.pos.x + v1.x;
       dot_M.pos.y = dot_S.pos.y + v1.y;
 
       v2.rotate(diff_angle * m2);
-      v2.limit(this.endStick.length);
+      //v2.limit(this.endStick.length);
       dot_E.pos.x = dot_M.pos.x - v2.x;
       dot_E.pos.y = dot_M.pos.y - v2.y;
     }
 
     if (!dot_S.pinned && dot_E.pinned) {
       v2.rotate(diff_angle * m2);
-      v2.limit(this.endStick.length);
+      //v2.limit(this.endStick.length);
       dot_M.pos.x = dot_E.pos.x + v2.x;
       dot_M.pos.y = dot_E.pos.y + v2.y;
 
       v1.rotate(-diff_angle * m1);
-      v1.limit(this.startStick.length);
+      //v1.limit(this.startStick.length);
       dot_S.pos.x = dot_M.pos.x - v1.x;
       dot_S.pos.y = dot_M.pos.y - v1.y;
     }
+*/
+//    if (!dot_S.pinned && !dot_E.pinned) {
+  /*
+  v1.rotate(-diff_angle * m1);
+  v1.limit(this.startStick.length);
+  dot_S.pos.x = dot_M.pos.x - v1.x;
+  dot_S.pos.y = dot_M.pos.y - v1.y;
 
-    if (!dot_S.pinned && !dot_E.pinned) {
+  v2.rotate(diff_angle * m2);
+  v2.limit(this.endStick.length);
+  dot_E.pos.x = dot_M.pos.x - v2.x;
+  dot_E.pos.y = dot_M.pos.y - v2.y;
+  */
+
       v1.rotate(-diff_angle * m1);
-      v1.limit(this.startStick.length);
-      dot_S.pos.x = dot_M.pos.x - v1.x;
-      dot_S.pos.y = dot_M.pos.y - v1.y;
+      let t_s = new Vector(dot_M.pos.x - v1.x, dot_M.pos.y - v1.y);
+      let diff_s = Vector.sub(dot_S.pos, t_s);
+      diff_s.mult(perc_diff);
+
+      if (!dot_S.pinned) {
+        dot_S.pos.x -= diff_s.x;
+        dot_S.pos.y -= diff_s.y;
+      }
 
       v2.rotate(diff_angle * m2);
-      v2.limit(this.endStick.length);
-      dot_E.pos.x = dot_M.pos.x - v2.x;
-      dot_E.pos.y = dot_M.pos.y - v2.y;
-    }
+      let t_e = new Vector(dot_M.pos.x - v2.x, dot_M.pos.y - v2.y);
+      let diff_e = Vector.sub(dot_E.pos, t_e);
+      diff_e.mult(perc_diff);
+
+      if (!dot_E.pinned) {
+        dot_E.pos.x -= diff_e.x;
+        dot_E.pos.y -= diff_e.y;
+      }
+//    }
 
 /*
     dot_S.freeze();
@@ -280,6 +304,44 @@ class Pivot {
       }
     }
 */
+  }
+
+  update_stick() {
+    let dot_S = this.startPoint;
+    let dot_M = this.middlePoint;
+    let dot_E = this.endPoint;
+
+    let v1 = Vector.sub(dot_M.pos, dot_S.pos);
+    let h_v1 = v1.heading();
+    let v1_dist = v1.mag();
+    let v1_diff = (this.startStick.length - v1_dist) / v1_dist * this.startStick.stiffness;
+    let v1_offset = v1.mult(v1_diff * 0.5);
+
+    let v2 = Vector.sub(dot_M.pos, dot_E.pos);
+    let h_v2 = v2.heading();
+    let v2_dist = v2.mag();
+    let v2_diff = (this.endStick.length - v2_dist) / v2_dist * this.endStick.stiffness;
+    let v2_offset = v2.mult(v2_diff * 0.5);
+
+    
+
+    let angle_diff = h_v2 - h_v1;
+    let act_angle = angle_diff < 0 ? (2 * Math.PI)+angle_diff : angle_diff;
+
+    let diff_angle = (this.angle - act_angle);// * this.stiffness;
+
+    v1_offset.rotate(diff_angle);
+    v2_offset.rotate(diff_angle);
+
+    dot_S.pos.x -= v1_offset.x;
+    dot_S.pos.y -= v1_offset.y;
+
+    dot_E.pos.x += v2_offset.x;
+    dot_E.pos.y += v2_offset.y;
+  }
+
+  update_from_worldwideweb() {
+
   }
 
   render(ctx) {
@@ -322,6 +384,12 @@ class Entity {
   }
 
   addPivot(s1, s2, angle, deadzone) {
+    /*
+    // NOOB Style
+    let fromPoint = this.sticks[s1].startPoint;
+    let toPoint = this.sticks[s2].endPoint;
+    this.sticks.push(new Stick(fromPoint, toPoint));
+    */
     this.pivots.push(new Pivot(this.sticks[s1], this.sticks[s2], angle, deadzone));
   }
 
@@ -342,7 +410,7 @@ class Entity {
 
   updateSticks() {
     let l = this.sticks.length;
-    let r = [...Array(l).keys()];
+    let r = [...Array(l).keys()];/*
     if (!DEBUG) {
       for (var i = 0; i < l; i++) {
         let f = Math.floor(Math.random() * l);
@@ -351,7 +419,7 @@ class Entity {
         r[t] = r[f];
         r[f] = o;
       }
-    }
+    }*/
     for (let i of r) {
       this.sticks[i].update();
     }
@@ -399,9 +467,9 @@ class Entity {
   update(ctx) {
     this.updatePoints();
 
-      this.updatePivots();
-      for (let j = 0; j < this.iterations; j++) {
+    for (let j = 0; j < this.iterations; j++) {
       this.updateSticks();
+      this.updatePivots();
       this.updateContrains();
     }
 
@@ -436,8 +504,8 @@ class Entity {
   }
 }
 
-let box = new Entity(DEBUG ? 1 : 100);
-/*
+let box = new Entity(DEBUG ? 10 : 100);
+
 box.addDot(300, 300, Math.random() * 80, 0, '#000');
 box.addDot(400, 300, 0, 0, '#00f');
 box.addDot(400, 400, 0, 0, '#0f0');
@@ -449,17 +517,17 @@ box.addStick(2, 3);
 box.addStick(3, 0);
 
 box.addPivot(0, 1, 2, null, 0);
-//box.addPivot(1, 2, 3);
+box.addPivot(1, 2, 3);
 box.addPivot(2, 3, 0, null, 0);
-//box.addPivot(3, 0, 1);
-*/
-let ox = 500, oy = 750;
+box.addPivot(3, 0, 1);
+
+let ox = 500, oy = 450;
 
 /*
 box.addDot(ox + -200, oy - 0);
 box.addDot(ox + -200, oy - 125);
-box.addDot(ox + 150, oy - 125);
-box.addDot(ox + 150, oy - 75);
+box.addDot(ox + 350, oy - 125);
+box.addDot(ox + 350, oy - 75);
 box.addDot(ox + 50, oy - 75);
 box.addDot(ox + 50, oy - 0);
 
@@ -479,7 +547,7 @@ box.addPivot(3, 4, 5);
 box.addPivot(4, 5, 0);
 box.addPivot(5, 0, 1);
 */
-
+/*
 let sides = 20;
 let diameter = 100;
 for (var s = 0; s < sides; s++) {
@@ -491,18 +559,20 @@ for (var s = 0; s < sides; s++) {
 
   box.addDot(ox + px, oy - py);
 }
-box.dots[0].pos.x += 1;
+//box.dots[0].pos.x += 1;
 box.dots[0].color = '#f00';
 
 for (var s = 0; s < sides; s++)
   box.addStick(s, (s + 1) % sides);
 
-for (var s = 0; s < box.sticks.length; s++)
-    box.addPivot(s, (s + 1) % box.sticks.length);
+let n = box.sticks.length;
 
-  box.pinPoint(0);
+for (var s = 0; s < n; s++)
+    box.addPivot(s, (s + 1) % n);
+
+//  box.pinPoint(0);
 //  box.pinPoint(10);
-
+*/
 
 let stop = false;
 
