@@ -193,9 +193,9 @@ class Pivot {
     let act_angle = act_diff < 0 ? (2 * Math.PI)+act_diff : act_diff;
 
     let diff_angle = (this.angle - act_angle);// * this.stiffness;
-    if (Math.abs(diff_angle) < this.deadzone) diff_angle = 0;
+    //if (Math.abs(diff_angle) < this.deadzone) diff_angle = 0;
 
-    let perc_diff = 0.5;//Math.abs(diff_angle / this.angle) * 5;
+    let perc_diff = 0.5;//Math.abs(diff_angle / this.angle) * 0.5; // 0.5
     //console.log(perc_diff);
 
     if (DEBUG) {
@@ -259,13 +259,13 @@ class Pivot {
 
   v1.rotate(-diff_angle * m1);
   v1.limit(this.startStick.length);
-  let t_s = new Vector(dot_M.pos.x - v1.x, dot_M.pos.y - v1.y);
-  let diff_s = Vector.sub(dot_S.pos, t_s);
+  let t_s = new Vector(dot_S.pos.x + v1.x, dot_S.pos.y + v1.y);
+  let diff_s = Vector.sub(dot_M.pos, t_s);
   diff_s.mult(perc_diff);
 
-  if (!dot_S.pinned) {
-    dot_S.pos.x -= diff_s.x;
-    dot_S.pos.y -= diff_s.y;
+  if (!dot_M.pinned) {
+    dot_M.pos.x -= diff_s.x;
+    dot_M.pos.y -= diff_s.y;
   }
 
   v2.rotate(diff_angle * m2);
@@ -278,6 +278,8 @@ class Pivot {
     dot_E.pos.x -= diff_e.x;
     dot_E.pos.y -= diff_e.y;
   }
+
+
 //    }
 
 /*
@@ -439,8 +441,8 @@ class Entity {
 
   updatePivots() {
     let l = this.pivots.length;
-    let r = [...Array(l).keys()];/*
-    if (!DEBUG) {
+    let r = [...Array(l).keys()];
+    if (!DEBUG || true) {
       for (var i = 0; i < l; i++) {
         let f = Math.floor(Math.random() * l);
         let t = Math.floor(Math.random() * l);
@@ -448,7 +450,7 @@ class Entity {
         r[t] = r[f];
         r[f] = o;
       }
-    }*/
+    }
     for (let i of r) {
       this.pivots[i].update();
     }
@@ -534,6 +536,31 @@ box.addPivot(0, 1, 2, null, 0);
 //box.addPivot(3, 0, 1);
 */
 let ox = 500, oy = 350;
+/*
+box.addDot(ox, oy - 0);
+box.addDot(ox - 400, oy + 8);
+box.addDot(ox + 400, oy + 8);
+
+
+box.pinPoint(1);
+
+box.addStick(0, 1); //0
+box.addStick(1, 2); //1
+box.addStick(2, 0); //2
+
+box.addPivot(0, 1);
+box.addPivot(1, 2);
+box.addPivot(2, 0);
+
+
+canvas.addEventListener("mousedown", function (e) {
+  e.preventDefault();
+
+  box.unpinPoint(1);
+
+  return false;
+}, false);
+*/
 
 /*
 box.addDot(ox + 250, oy - 0, -Math.random() * 80, Math.random() * 80);
@@ -543,7 +570,7 @@ box.addDot(ox + 150, oy - 75);
 box.addDot(ox + 50, oy - 75);
 box.addDot(ox + 50, oy - 0);
 
-//box.pinPoint(5);
+box.pinPoint(5);
 
 box.addStick(0, 1); //0
 box.addStick(1, 2); //1
@@ -562,13 +589,52 @@ box.addPivot(0, 5);
 canvas.addEventListener("mousedown", function (e) {
   e.preventDefault();
 
+  box.unpinPoint(5);
+
+  return false;
+}, false);
+*/
+
+/*
+box.addDot(ox + 0, oy + 0);
+box.addDot(ox + 0, oy + 100);
+box.addDot(ox + 50, oy + 100);
+box.addDot(ox + 100, oy + 50);
+box.addDot(ox + 150, oy + 50);
+box.addDot(ox + 200, oy + 100);
+box.addDot(ox + 250, oy + 100);
+box.addDot(ox + 250, oy + 0);
+
+box.pinPoint(0);
+
+box.addStick(0, 1); //0
+box.addStick(1, 2); //1
+box.addStick(2, 3); //2
+box.addStick(3, 4); //3
+box.addStick(4, 5); //4
+box.addStick(5, 6); //5
+box.addStick(6, 7); //6
+box.addStick(7, 0); //7
+
+box.addPivot(0, 1);
+box.addPivot(1, 2);
+box.addPivot(2, 3);
+box.addPivot(3, 4);
+box.addPivot(4, 5);
+box.addPivot(5, 6);
+box.addPivot(6, 7);
+box.addPivot(7, 0);
+
+canvas.addEventListener("mousedown", function (e) {
+  e.preventDefault();
+
   box.unpinPoint(0);
 
   return false;
 }, false);
 */
 
-let sides = 5;
+let sides = 20;
 let diameter = 100;
 for (var s = 0; s < sides; s++) {
   let s_step = (2 * Math.PI) / sides;
@@ -577,7 +643,10 @@ for (var s = 0; s < sides; s++) {
   let px = Math.cos(s_angle) * diameter;
   let py = Math.sin(s_angle) * diameter;
 
-  box.addDot(ox + px, oy - py);
+  if (s == 0)
+    box.addDot(ox + px, oy - py, -Math.random() * 2, Math.random() * 2);
+  else
+    box.addDot(ox + px, oy - py);
 }
 //box.dots[0].pos.x += 1;
 box.dots[0].color = '#f00';
@@ -587,10 +656,17 @@ for (var s = 0; s < sides; s++)
 
 let n = box.sticks.length;
 
-for (var s = 0; s < n; s++)
+for (var s = 0; s < n; s++) {
+  try {
     box.addPivot(s, (s + 1) % n);
 
-  box.pinPoint(0);
+  } catch (ex) {
+    console.log(s, s + 1);
+  }
+
+}
+
+//  box.pinPoint(n );
 //  box.pinPoint(10);
 
 
