@@ -664,7 +664,7 @@ canvas.addEventListener("mousedown", function (e) {
 }, false);
 */
 
-
+/*
 box.addDot(ox + 0, oy - 0);
 box.addDot(ox + 0, oy - 50);
 box.addDot(ox + 0, oy - 200);
@@ -698,7 +698,7 @@ box.addPivot(4, 6);
 
 box.addPivot(3, 6);
 box.addPivot(3, 7);
-
+*/
 
 /*
 
@@ -817,7 +817,7 @@ box.render(ctx);
 
 function Stop() { stop = true; }
 
-/*
+
 canvas.addEventListener("mousedown", function (e) {
   e.preventDefault();
 
@@ -849,7 +849,7 @@ canvas.addEventListener("mousedown", function (e) {
 
   return false;
 }, false);
-*/
+
 /*
 
 let dot_A = new Dot(0, 0, 0, 0, '#f00');
