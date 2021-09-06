@@ -5,7 +5,7 @@ let CANVAS_HEIGHT = window.innerHeight-20;
 canvas.width = CANVAS_WIDTH;
 canvas.height = CANVAS_HEIGHT;
 
-let DEBUG = false;
+let DEBUG = true;
 
 window.addEventListener("contextmenu", e => e.preventDefault());
 
@@ -19,7 +19,7 @@ class Dot {
     this.nextpos = new Vector(x, y);
 
     this.friction = 0.97;
-    this.groundFriction = 0.2;
+    this.groundFriction = 0;
 
     this.gravity = new Vector(0, 1);
 
@@ -37,9 +37,10 @@ class Dot {
 
     let vel = Vector.sub(this.pos, this.oldpos);
     vel.mult(this.friction);
-/*
+
     // if the point touches the ground set groundFriction
-    if (this.pos.y >= CANVAS_HEIGHT - this.radius && vel.magSq() > 0.000001) {
+    /*
+    if (this.pos.y >= (CANVAS_HEIGHT - this.radius - 10) && vel.magSq() > 0.000001) {
       var m = vel.mag();
       vel.x /= m;
       vel.y /= m;
@@ -60,7 +61,9 @@ class Dot {
     }
     if (this.pos.y > CANVAS_HEIGHT - this.radius - 10) {
       //this.pinned = true;
-      this.pos.y = CANVAS_HEIGHT - this.radius - 10;
+      //this.pos.y -= (this.pos.y - (CANVAS_HEIGHT - this.radius - 10));
+      this.pos.y = (CANVAS_HEIGHT - this.radius - 10);
+      this.freeze();
     }
     if (this.pos.y < this.radius) {
       this.pos.y = this.radius;
@@ -139,11 +142,18 @@ class Pivot {
     this.startStick = s1;
     this.endStick = s2;
 
-    if (this.startStick.endPoint != this.endStick.startPoint) throw 'Sticks not connected';
+    console.log(this.startStick, this.endStick);
 
-    this.startPoint = this.startStick.startPoint;
-    this.middlePoint = this.endStick.startPoint;
-    this.endPoint = this.endStick.endPoint;
+    if (this.startStick.endPoint == this.endStick.startPoint) {
+      this.startPoint = this.startStick.startPoint;
+      this.middlePoint = this.endStick.startPoint;
+      this.endPoint = this.endStick.endPoint;
+    } else if (this.startStick.startPoint == this.endStick.endPoint) {
+      this.startPoint = this.startStick.endPoint;
+      this.middlePoint = this.startStick.startPoint;
+      this.endPoint = this.endStick.startPoint;
+    } else
+      throw 'Sticks not connected';
 
     this.stiffness = 0.25;
 
@@ -429,7 +439,7 @@ class Entity {
 
   updatePivots() {
     let l = this.pivots.length;
-    let r = [...Array(l).keys()];
+    let r = [...Array(l).keys()];/*
     if (!DEBUG) {
       for (var i = 0; i < l; i++) {
         let f = Math.floor(Math.random() * l);
@@ -438,7 +448,7 @@ class Entity {
         r[t] = r[f];
         r[f] = o;
       }
-    }
+    }*/
     for (let i of r) {
       this.pivots[i].update();
     }
@@ -472,8 +482,8 @@ class Entity {
     for (let j = 0; j < this.iterations; j++) {
       this.updateSticks();
       this.updatePivots();
-      this.updateContrains();
-    }
+    this.updateContrains();
+  }
 
     this.pivotCnt = 0;
     this.render(ctx);
@@ -523,42 +533,42 @@ box.addPivot(0, 1, 2, null, 0);
 //box.addPivot(2, 3, 0, null, 0);
 //box.addPivot(3, 0, 1);
 */
-let ox = 500, oy = 450;
+let ox = 500, oy = 350;
 
-
-box.addDot(ox + -200, oy - 0);
-box.addDot(ox + -200, oy - 125);
-box.addDot(ox + 350, oy - 125);
-box.addDot(ox + 350, oy - 75);
+/*
+box.addDot(ox + 250, oy - 0, -Math.random() * 80, Math.random() * 80);
+box.addDot(ox + 250, oy - 125);
+box.addDot(ox + 150, oy - 125);
+box.addDot(ox + 150, oy - 75);
 box.addDot(ox + 50, oy - 75);
 box.addDot(ox + 50, oy - 0);
 
-box.pinPoint(2);
+//box.pinPoint(5);
 
-box.addStick(0, 1);
-box.addStick(1, 2);
-box.addStick(2, 3);
-box.addStick(3, 4);
-box.addStick(4, 5);
-box.addStick(5, 0);
+box.addStick(0, 1); //0
+box.addStick(1, 2); //1
+box.addStick(2, 3); //2
+box.addStick(3, 4); //3
+box.addStick(4, 5); //4
+box.addStick(5, 0); //5
 
-box.addPivot(0, 1, 2);
-box.addPivot(1, 2, 3);
-box.addPivot(2, 3, 4);
-box.addPivot(3, 4, 5);
-box.addPivot(4, 5, 0);
-box.addPivot(5, 0, 1);
+box.addPivot(1, 0);
+box.addPivot(2, 1);
+box.addPivot(3, 2);
+box.addPivot(3, 4);
+box.addPivot(5, 4);
+box.addPivot(0, 5);
 
 canvas.addEventListener("mousedown", function (e) {
   e.preventDefault();
 
-  box.unpinPoint(2);
+  box.unpinPoint(0);
 
   return false;
 }, false);
+*/
 
-/*
-let sides = 20;
+let sides = 5;
 let diameter = 100;
 for (var s = 0; s < sides; s++) {
   let s_step = (2 * Math.PI) / sides;
@@ -583,7 +593,7 @@ for (var s = 0; s < n; s++)
   box.pinPoint(0);
 //  box.pinPoint(10);
 
-*/
+
 let stop = false;
 
 function animate() {
@@ -594,7 +604,7 @@ function animate() {
 
   if (!stop) requestAnimationFrame(animate);
 }
-animate();
+//animate();
 box.render(ctx);
 
 function Stop() { stop = true; }
