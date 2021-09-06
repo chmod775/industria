@@ -63,8 +63,8 @@ class Dot {
     }
     if (this.pos.y > CANVAS_HEIGHT - this.radius - 10) {
       //this.pinned = true;
-      this.pos.y -= (this.pos.y - (CANVAS_HEIGHT - this.radius - 10));
-      //this.pos.y = (CANVAS_HEIGHT - this.radius - 10);
+      //this.pos.y -= (this.pos.y - (CANVAS_HEIGHT - this.radius - 10));
+      this.pos.y = (CANVAS_HEIGHT - this.radius - 10);
       //this.freeze();
     }
     if (this.pos.y < this.radius) {
@@ -209,12 +209,10 @@ class Pivot {
     let act_angle = act_diff < 0 ? (2 * Math.PI)+act_diff : act_diff;
 
     let diff_angle = (this.angle - act_angle);// * this.stiffness;
-    //if (Math.abs(diff_angle) < this.deadzone) diff_angle = 0;
 
     diff_angle = Math.sign(diff_angle) * Math.max(0, Math.abs(diff_angle) - this.deadzone);
 
-    let perc_diff = 0.5;//Math.abs(diff_angle / this.angle) * 0.5; // 0.5
-    //console.log(perc_diff);
+    let perc_diff = 1.0;//Math.abs(diff_angle / this.angle) * 2; // 0.5
 
     if (DEBUG) {
       console.log('-')
@@ -228,86 +226,19 @@ class Pivot {
     let m2 = v1.magSq() / m1;
     m1 = v2.magSq() / m1;
 
-    //m1 = 1; m2 = 1;
-
-    //let m1 = Math.abs(diff_angle / this.angle);
-    //console.log(m1);
-
-
-
-
-
     if (dot_S.pinned && dot_E.pinned) return;
-/*
-    if (dot_S.pinned && !dot_E.pinned) {
-      v1.rotate(-diff_angle * m1);
-      //v1.limit(this.startStick.length);
-      dot_M.pos.x = dot_S.pos.x + v1.x;
-      dot_M.pos.y = dot_S.pos.y + v1.y;
 
-      v2.rotate(diff_angle * m2);
-      //v2.limit(this.endStick.length);
-      dot_E.pos.x = dot_M.pos.x - v2.x;
-      dot_E.pos.y = dot_M.pos.y - v2.y;
-    }
-
-    if (!dot_S.pinned && dot_E.pinned) {
-      v2.rotate(diff_angle * m2);
-      //v2.limit(this.endStick.length);
-      dot_M.pos.x = dot_E.pos.x + v2.x;
-      dot_M.pos.y = dot_E.pos.y + v2.y;
-
-      v1.rotate(-diff_angle * m1);
-      //v1.limit(this.startStick.length);
-      dot_S.pos.x = dot_M.pos.x - v1.x;
-      dot_S.pos.y = dot_M.pos.y - v1.y;
-    }
-*/
-//    if (!dot_S.pinned && !dot_E.pinned) {
-  /*
-  v1.rotate(-diff_angle * m1);
-  v1.limit(this.startStick.length);
-  dot_S.pos.x = dot_M.pos.x - v1.x;
-  dot_S.pos.y = dot_M.pos.y - v1.y;
-
-  v2.rotate(diff_angle * m2);
-  v2.limit(this.endStick.length);
-  dot_E.pos.x = dot_M.pos.x - v2.x;
-  dot_E.pos.y = dot_M.pos.y - v2.y;
-  */
-
-  if (dot_M.pinned) {
-    v1.rotate(-diff_angle * m1);
-    //[OPTIONAL ???] v1.limit(this.startStick.length);
-    let t_s = new Vector(dot_M.pos.x - v1.x, dot_M.pos.y - v1.y);
-    let diff_s = Vector.sub(dot_S.pos, t_s);
-    diff_s.mult(perc_diff);
-  
-    if (!dot_S.pinned) {
-      dot_S.pos.x -= diff_s.x;
-      dot_S.pos.y -= diff_s.y;
-    }
-
-    v2.rotate(diff_angle * m2);
-    //[OPTIONAL ???] v2.limit(this.endStick.length);
-    let t_e = new Vector(dot_M.pos.x - v2.x, dot_M.pos.y - v2.y);
-    let diff_e = Vector.sub(dot_E.pos, t_e);
-    diff_e.mult(perc_diff);
-  
-    if (!dot_E.pinned) {
-      dot_E.pos.x -= diff_e.x;
-      dot_E.pos.y -= diff_e.y;
-    }
-  } else {
-    if (step % 2 == 0) {
+    if (dot_M.pinned) {
       v1.rotate(-diff_angle * m1);
       //[OPTIONAL ???] v1.limit(this.startStick.length);
-      let t_s = new Vector(dot_S.pos.x + v1.x, dot_S.pos.y + v1.y);
-      let diff_s = Vector.sub(dot_M.pos, t_s);
+      let t_s = new Vector(dot_M.pos.x - v1.x, dot_M.pos.y - v1.y);
+      let diff_s = Vector.sub(dot_S.pos, t_s);
       diff_s.mult(perc_diff);
     
-      dot_M.pos.x -= diff_s.x;
-      dot_M.pos.y -= diff_s.y;
+      if (!dot_S.pinned) {
+        dot_S.pos.x -= diff_s.x;
+        dot_S.pos.y -= diff_s.y;
+      }
 
       v2.rotate(diff_angle * m2);
       //[OPTIONAL ???] v2.limit(this.endStick.length);
@@ -320,69 +251,48 @@ class Pivot {
         dot_E.pos.y -= diff_e.y;
       }
     } else {
-      v2.rotate(diff_angle * m2);
-      //[OPTIONAL ???] v2.limit(this.endStick.length);
-      let t_e = new Vector(dot_E.pos.x + v2.x, dot_E.pos.y + v2.y);
-      let diff_e = Vector.sub(dot_M.pos, t_e);
-      diff_e.mult(perc_diff);
-    
-      dot_M.pos.x -= diff_e.x;
-      dot_M.pos.y -= diff_e.y;
+      if (step % 2 == 0) {
+        v1.rotate(-diff_angle * m1);
+        //[OPTIONAL ???] v1.limit(this.startStick.length);
+        let t_s = new Vector(dot_S.pos.x + v1.x, dot_S.pos.y + v1.y);
+        let diff_s = Vector.sub(dot_M.pos, t_s);
+        diff_s.mult(perc_diff);
+      
+        dot_M.pos.x -= diff_s.x;
+        dot_M.pos.y -= diff_s.y;
 
-      v1.rotate(-diff_angle * m1);
-      //[OPTIONAL ???] v1.limit(this.startStick.length);
-      let t_s = new Vector(dot_M.pos.x - v1.x, dot_M.pos.y - v1.y);
-      let diff_s = Vector.sub(dot_S.pos, t_s);
-      diff_s.mult(perc_diff);
-    
-      if (!dot_S.pinned) {
-        dot_S.pos.x -= diff_s.x;
-        dot_S.pos.y -= diff_s.y;
+        v2.rotate(diff_angle * m2);
+        //[OPTIONAL ???] v2.limit(this.endStick.length);
+        let t_e = new Vector(dot_M.pos.x - v2.x, dot_M.pos.y - v2.y);
+        let diff_e = Vector.sub(dot_E.pos, t_e);
+        diff_e.mult(perc_diff);
+      
+        if (!dot_E.pinned) {
+          dot_E.pos.x -= diff_e.x;
+          dot_E.pos.y -= diff_e.y;
+        }
+      } else {
+        v2.rotate(diff_angle * m2);
+        //[OPTIONAL ???] v2.limit(this.endStick.length);
+        let t_e = new Vector(dot_E.pos.x + v2.x, dot_E.pos.y + v2.y);
+        let diff_e = Vector.sub(dot_M.pos, t_e);
+        diff_e.mult(perc_diff);
+      
+        dot_M.pos.x -= diff_e.x;
+        dot_M.pos.y -= diff_e.y;
+
+        v1.rotate(-diff_angle * m1);
+        //[OPTIONAL ???] v1.limit(this.startStick.length);
+        let t_s = new Vector(dot_M.pos.x - v1.x, dot_M.pos.y - v1.y);
+        let diff_s = Vector.sub(dot_S.pos, t_s);
+        diff_s.mult(perc_diff);
+      
+        if (!dot_S.pinned) {
+          dot_S.pos.x -= diff_s.x;
+          dot_S.pos.y -= diff_s.y;
+        }
       }
     }
-  }
-
-
-
-
-//    }
-
-/*
-    dot_S.freeze();
-    dot_M.freeze();
-    dot_E.freeze();
-*/
-/*
-    if (!dot_S.pinned) {
-      v1.rotate(-diff_angle * ( m1));
-      v1.limit(this.startStick.length);
-      if (DEBUG)
-        console.log(v1);
-
-      dot_S.pos.x = dot_M.pos.x - v1.x;
-      dot_S.pos.y = dot_M.pos.y - v1.y;
-    }
-
-    if (!dot_E.pinned) {
-      v2.rotate(diff_angle * ( m2));
-      v2.limit(this.endStick.length);
-      dot_E.pos.x = dot_M.pos.x - v2.x;
-      dot_E.pos.y = dot_M.pos.y - v2.y;
-    }
-*/
-/*
-    if (m1 > m2) {
-      if (!this.startPoint.pinned) {
-        v1.rotate(-diff_angle * 0.5);
-        this.startPoint.pos = Vector.sub(this.middlePoint.pos, v1);
-      }
-    } else {
-      if (!this.endPoint.pinned) {
-        v2.rotate(diff_angle * 0.5);
-        this.endPoint.pos = Vector.sub(this.middlePoint.pos, v2);
-      }
-    }
-*/
   }
 
   update_stick() {
@@ -587,7 +497,7 @@ class Entity {
   }
 }
 
-let box = new Entity(100);
+let box = new Entity(20);
 /*
 box.addDot(300, 300, -Math.random() * 80, Math.random() * 80, '#000');
 box.addDot(400, 300, 0, 0, '#00f');
@@ -698,8 +608,8 @@ box.addPivot(4, 6);
 
 box.addPivot(3, 6);
 box.addPivot(3, 7);
-*/
 
+*/
 /*
 
 box.addDot(ox + 0, oy + 0);
@@ -756,8 +666,8 @@ canvas.addEventListener("mousedown", function (e) {
   return false;
 }, false);
 */
-/*
-let sides = 30;
+
+let sides = 50;
 let diameter = 100;
 for (var s = 0; s < sides; s++) {
   let s_step = (2 * Math.PI) / sides;
@@ -798,7 +708,7 @@ canvas.addEventListener("mousedown", function (e) {
 
   return false;
 }, false);
-*/
+
 
 
 
@@ -817,7 +727,7 @@ box.render(ctx);
 
 function Stop() { stop = true; }
 
-
+/*
 canvas.addEventListener("mousedown", function (e) {
   e.preventDefault();
 
@@ -849,7 +759,7 @@ canvas.addEventListener("mousedown", function (e) {
 
   return false;
 }, false);
-
+*/
 /*
 
 let dot_A = new Dot(0, 0, 0, 0, '#f00');
