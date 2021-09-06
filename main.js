@@ -5,7 +5,7 @@ let CANVAS_HEIGHT = window.innerHeight-20;
 canvas.width = CANVAS_WIDTH;
 canvas.height = CANVAS_HEIGHT;
 
-let DEBUG = true;
+let DEBUG = false;
 
 window.addEventListener("contextmenu", e => e.preventDefault());
 
@@ -549,6 +549,14 @@ box.addPivot(3, 4, 5);
 box.addPivot(4, 5, 0);
 box.addPivot(5, 0, 1);
 
+canvas.addEventListener("mousedown", function (e) {
+  e.preventDefault();
+
+  box.unpinPoint(2);
+
+  return false;
+}, false);
+
 /*
 let sides = 20;
 let diameter = 100;
@@ -586,7 +594,7 @@ function animate() {
 
   if (!stop) requestAnimationFrame(animate);
 }
-//animate();
+animate();
 box.render(ctx);
 
 function Stop() { stop = true; }
