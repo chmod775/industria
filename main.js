@@ -18,7 +18,6 @@ class Dot {
 
     this.pos = new Vector(x, y);
     this.oldpos = new Vector(x + (vx||0), y + (vy||0)); // velocity x, y
-    this.nextpos = new Vector(x, y);
 
     this.friction = 0.97;
     this.groundFriction = 0.5;
@@ -346,9 +345,37 @@ class Pivot {
   }
 }
 
+function intersects(s_source, s_dest) {
+  let a_s = s_source.startPoint.pos;
+  let a_e = s_source.endPoint.pos;
+  let b_s = s_dest.startPoint.pos;
+  let b_e = s_dest.endPoint.pos;
 
+  let a = a_s.x;
+  let b = a_s.y;
+  let c = a_e.x;
+  let d = a_e.y;
+
+  let p = b_s.x;
+  let q = b_s.y;
+  let r = b_e.x;
+  let s = b_e.y;
+
+  var det, gamma, lambda;
+  det = (c - a) * (s - q) - (r - p) * (d - b);
+  if (det === 0) {
+    return false;
+  } else {
+    lambda = ((s - q) * (r - a) + (p - r) * (s - b)) / det;
+    gamma = ((b - d) * (r - a) + (c - a) * (s - b)) / det;
+    return (0 < lambda && lambda < 1) && (0 < gamma && gamma < 1);
+  }
+};
+
+let entity_cnt = 0;
 class Entity {
   constructor(iterations) {
+    this.id = entity_cnt++;
     this.dots = [];
     this.sticks = [];
     this.pivots = [];
@@ -366,24 +393,20 @@ class Entity {
 
   addDot(x, y, vx, vy, color) {
     let n_dot = new Dot(x, y, vx, vy, color);
-    n_dot.id = this.dots.length;
+    n_dot.id = `d_${this.id}_${this.dots.length}`;
     this.dots.push(n_dot);
   }
 
   addStick(p1, p2, length) {
     let n_stick = new Stick(this.dots[p1], this.dots[p2], length);
-    n_stick.id = this.sticks.length;
+    n_stick.id = `s_${this.id}_${this.sticks.length}`;
     this.sticks.push(n_stick);
   }
 
   addPivot(s1, s2, deadzone) {
-    /*
-    // NOOB Style
-    let fromPoint = this.sticks[s1].startPoint;
-    let toPoint = this.sticks[s2].endPoint;
-    this.sticks.push(new Stick(fromPoint, toPoint));
-    */
-    this.pivots.push(new Pivot(this.sticks[s1], this.sticks[s2], null, deadzone));
+    let n_pivot = new Pivot(this.sticks[s1], this.sticks[s2], null, deadzone);
+    n_pivot.id = `p_${this.id}_${this.pivots.length}`;
+    this.pivots.push(n_pivot);
   }
 
   updatePoints() {
@@ -467,11 +490,9 @@ class Entity {
     }
 
     this.pivotCnt = 0;
-    this.render(ctx);
   }
 
   render(ctx) {
-    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
     this.renderPoints(ctx);
     this.renderSticks(ctx);
     this.renderPivots(ctx);
@@ -495,25 +516,167 @@ class Entity {
       this.pivots[i].calculate();
     }
   }
+
+  collision(other) {
+    let isColliding = false;
+
+    let this_sticks = [];
+    let other_sticks = [];
+
+    for (var s_source of this.sticks) {
+      for (var s_dest of other.sticks) {
+        if (intersects(s_source, s_dest)) {
+          isColliding = true;
+          s_source.color = '#f00';
+          s_dest.color = '#f00';
+
+          if (!this_sticks.find(t => t.id == s_source.id)) this_sticks.push(s_source);
+          if (!other_sticks.find(t => t.id == s_dest.id)) other_sticks.push(s_dest);
+        }
+      }
+    }
+
+    if (isColliding) {
+      let this_points = [];
+      for (var s of this_sticks) {
+        if (!this_points.find(p => p.id == s.startPoint.id)) this_points.push(s.startPoint);
+        if (!this_points.find(p => p.id == s.endPoint.id)) this_points.push(s.endPoint);
+      }
+
+      console.log(this_points);
+    }
+
+    console.log(this_sticks, other_sticks);
+
+  }
 }
 
 let box = new Entity(20);
-/*
-box.addDot(300, 300, -Math.random() * 80, Math.random() * 80, '#000');
-box.addDot(400, 300, 0, 0, '#00f');
-box.addDot(400, 400, 0, 0, '#0f0');
-box.addDot(300, 400, 0, 0, '#f00');
+
+box.addDot(250, 400 + 300, 0, 0, '#f00');
+box.addDot(350, 250 + 300, 0, 0, '#00f');
+box.addDot(400, 350 + 300, 0, 0, '#0f0');
+box.addDot(450, 280 + 300, 0, 0, '#f00');
+box.addDot(500, 400 + 300, 0, 0, '#f00');
+
+box.pinPoint(0);
+box.pinPoint(4);
 
 box.addStick(0, 1);
 box.addStick(1, 2);
 box.addStick(2, 3);
-box.addStick(3, 0);
+box.addStick(3, 4);
+box.addStick(4, 0);
 
-box.addPivot(0, 1, 2, null, 0);
-//box.addPivot(1, 2, 3);
-//box.addPivot(2, 3, 0, null, 0);
-//box.addPivot(3, 0, 1);
+box.addPivot(0, 1);
+box.addPivot(1, 2);
+box.addPivot(2, 3);
+box.addPivot(3, 4);
+box.addPivot(4, 0);
+
+let box2 = new Entity(20);
+box2.addDot(-50 + 300, 200 + 300);
+box2.addDot(-50 + 600, 200 + 300, 0, 0, '#00f');
+box2.addDot(-50 + 600, 200 + 400, 0, 0, '#0f0');
+box2.addDot(-50 + 300, 200 + 400, 0, 0, '#f00');
+
+box2.addStick(0, 1);
+box2.addStick(1, 2);
+box2.addStick(2, 3);
+box2.addStick(3, 0);
+/*
+box2.addPivot(0, 1);
+box2.addPivot(1, 2);
+box2.addPivot(2, 3);
+box2.addPivot(3, 0);
 */
+//box2.pinPoint(0);
+
+
+
+
+let stop = false;
+
+let objects = [box, box2];
+
+function animate() {
+  ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+
+  for (var oIdx in objects) {
+    let oVal = objects[oIdx];
+    oVal.update(ctx);
+
+    for (var dIdx = oIdx; dIdx < objects.length; dIdx++) {
+      if (dIdx > oIdx) {
+        let ret = oVal.collision(objects[dIdx]);
+        console.log(ret);
+      }
+        
+    }
+
+    oVal.render(ctx);
+  }
+
+  if (!stop) requestAnimationFrame(animate);
+}
+ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+objects.forEach(o => o.render(ctx));
+
+function Stop() { stop = true; }
+
+let selectedDot = null;
+
+canvas.addEventListener("mousedown", function (e) {
+  e.preventDefault();
+
+  let cx = e.clientX;
+  let cy = e.clientY;
+  let mv = new Vector(cx, cy);
+
+  if (e.button == 2) {
+    selectedDot = null;
+    for (var o of objects) {
+      for (var p of o.dots) {
+        let d = Vector.dist(p.pos, mv);
+        if (d < 20) {
+          selectedDot = p;
+          break;
+        }
+      }
+    }
+  } else if (e.button == 0) {
+    selectedDot.pos.x = cx;
+    selectedDot.pos.y = cy;
+    selectedDot.freeze();
+  } else if (e.button == 1) {
+    for (var oIdx in objects) {
+      let oVal = objects[oIdx];
+      for (var dIdx = oIdx; dIdx < objects.length; dIdx++) {
+        if (dIdx > oIdx) {
+          let ret = oVal.collision(objects[dIdx]);
+          console.log(ret);
+        }
+      }
+    }
+  }
+
+  ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+  if (selectedDot) {
+    ctx.beginPath();
+    ctx.fillStyle = '#00f';
+    ctx.rect(selectedDot.pos.x - 10, selectedDot.pos.y - 10, 20, 20);
+    ctx.stroke();
+    ctx.closePath();
+  }
+
+  for (var o of objects)
+    o.render(ctx);
+
+  return false;
+}, false);
+
 let ox = 500, oy = 350;
 /*
 box.addDot(ox, oy - 0);
@@ -666,7 +829,7 @@ canvas.addEventListener("mousedown", function (e) {
   return false;
 }, false);
 */
-
+/*
 let sides = 50;
 let diameter = 100;
 for (var s = 0; s < sides; s++) {
@@ -710,22 +873,7 @@ canvas.addEventListener("mousedown", function (e) {
 }, false);
 
 
-
-
-let stop = false;
-
-function animate() {
-  
-
-  box.update(ctx);
-    
-
-  if (!stop) requestAnimationFrame(animate);
-}
-//animate();
-box.render(ctx);
-
-function Stop() { stop = true; }
+*/
 
 /*
 canvas.addEventListener("mousedown", function (e) {
@@ -759,112 +907,4 @@ canvas.addEventListener("mousedown", function (e) {
 
   return false;
 }, false);
-*/
-/*
-
-let dot_A = new Dot(0, 0, 0, 0, '#f00');
-let dot_B = new Dot(500, 500, 0, 0, '#0f0');
-let dot_C = new Dot(0, 0, 0, 0, '#00f');
-
-dot_A.pinned = true;
-
-box.dots.push(dot_A);
-box.dots.push(dot_B);
-box.dots.push(dot_C);
-
-box.addStick(0, 1);
-box.addStick(1, 2);
-
-box.addPivot(0, 1, 2);
-
-function correct(angle) {
-  let angle_rad = angle / 180 * Math.PI;
-
-  let dot_S = dot_A;
-  let dot_M = dot_B;
-  let dot_E = dot_C;
-
-  let v1 = Vector.sub(dot_M.pos, dot_S.pos);
-  let v2 = Vector.sub(dot_M.pos, dot_E.pos);
-
-  let ha = v1.heading();
-  let hb = v2.heading();
-
-  let act_diff = ha - hb;
-  let act_angle = act_diff < 0 ? (2 * Math.PI)+act_diff : act_diff;
-
-  let diff_angle = angle_rad - act_angle;
-  console.log(`Diff: ${diff_angle / Math.PI * 180}`);
-
-  //let m1 = Math.abs(diff_angle / ((2 * Math.PI) - angle_rad));
-  //console.log(m1);
-  
-  let m1 = v1.magSq() + v2.magSq();
-  let m2 = v1.magSq() / m1;
-  m1 = v2.magSq() / m1;
-
-  if (dot_S.pinned && dot_E.pinned) return;
-
-  if (dot_S.pinned && !dot_E.pinned) {
-    v1.rotate(diff_angle * m1);
-    dot_M.pos.x = dot_S.pos.x + v1.x;
-    dot_M.pos.y = dot_S.pos.y + v1.y;
-  
-    v2.rotate(-diff_angle * m2);
-    dot_E.pos.x = dot_M.pos.x - v2.x;
-    dot_E.pos.y = dot_M.pos.y - v2.y;
-  }
-
-  if (!dot_S.pinned && dot_E.pinned) {
-    v2.rotate(-diff_angle * m2);
-    dot_M.pos.x = dot_E.pos.x + v2.x;
-    dot_M.pos.y = dot_E.pos.y + v2.y;
-  
-    v1.rotate(diff_angle * m1);
-    dot_S.pos.x = dot_M.pos.x - v1.x;
-    dot_S.pos.y = dot_M.pos.y - v1.y;
-  }
-
-  if (!dot_S.pinned && !dot_E.pinned) {
-    v1.rotate(diff_angle * m1);
-    dot_S.pos.x = dot_M.pos.x - v1.x;
-    dot_S.pos.y = dot_M.pos.y - v1.y;
-  
-    v2.rotate(-diff_angle * m2);
-    dot_E.pos.x = dot_M.pos.x - v2.x;
-    dot_E.pos.y = dot_M.pos.y - v2.y;
-  }
-
-
-
-  ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-  box.render(ctx);
-}
-
-canvas.addEventListener("mousedown", function (e) {
-  e.preventDefault();
-
-  console.log(e);
-
-  if (e.button == 0) {
-    dot_A.pos.x = e.clientX;
-    dot_A.pos.y = e.clientY;
-    dot_A.freeze();
-  }
-  if (e.button == 2) {
-    dot_C.pos.x = e.clientX;
-    dot_C.pos.y = e.clientY;
-    dot_C.freeze();
-  }
-
-  if (e.ctrlKey)
-    box.recalculate();
-
-  ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-
-  box.render(ctx);
-
-  return false;
-}, false);
-box.render(ctx);
 */
