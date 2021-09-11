@@ -522,10 +522,10 @@ class Entity {
     this.updatePoints();
 
     for (let j = 0; j < this.iterations; j++) {
+      this.updateCollisions();
       this.updateSticks();
       this.updatePivots(j);
       this.updateContrains();
-      this.updateCollisions();
     }
 
     this.pivotCnt = 0;
@@ -582,7 +582,23 @@ class Entity {
     for (var p of this.dots) {
       let ret = pointInEntity(p.pos, other);
       if (ret.inside) {
+        let choosedStick = null;
+        let minDist = 10000000;
         for (var s of other_sticks) {
+          let pp = getProjectedPointOnLine(p.pos, s.startPoint.pos, s.endPoint.pos);
+          if (choosedStick == null) choosedStick = s;
+          let dx = p.pos.x - pp.x;
+          let dy = p.pos.y - pp.y;
+          let dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < minDist) {
+            minDist = dist;
+            choosedStick = s;
+          }
+        }
+
+        //console.log(other_sticks);
+        //for (var s of other_sticks) {
+        var s = choosedStick; {
           let pp = getProjectedPointOnLine(p.pos, s.startPoint.pos, s.endPoint.pos);
 
           // calculate the distance between two dots
@@ -590,9 +606,9 @@ class Entity {
           let dy = p.pos.y - pp.y;
           // pythagoras theorem
           let dist = Math.sqrt(dx * dx + dy * dy);
-          dist = Math.min(10, dist);
+          //dist = Math.min(10, dist);
           // calculate the resting distance betwen the dots
-          let diff = (0 - dist) * 0.05;
+          let diff = (0 - dist) / dist * 0.5;
           //console.log(dist);
 
           // getting the offset of the dots
@@ -669,7 +685,7 @@ let ground = createBox(10, 850, 1000, 200);
 for (var p of ground.dots)
   p.pinned = true;
 */
-/*
+
 let box = new Entity(20);
 objects.push(box);
 
@@ -710,7 +726,7 @@ box2.addPivot(0, 1);
 box2.addPivot(1, 2);
 box2.addPivot(2, 3);
 box2.addPivot(3, 0);
-*/
+
 //box2.pinPoint(0);
 
 
