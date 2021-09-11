@@ -15,6 +15,7 @@ window.addEventListener("contextmenu", e => e.preventDefault());
 class Dot {
   constructor(x, y, vx, vy, color) {
     this.id = 0;
+    this.owner = null;
 
     this.pos = new Vector(x, y);
     this.oldpos = new Vector(x + (vx||0), y + (vy||0)); // velocity x, y
@@ -83,6 +84,7 @@ class Dot {
 class Stick {
   constructor(p1, p2, length) {
     this.id = 0;
+    this.owner = null;
     this.startPoint = p1;
     this.endPoint = p2;
     this.stiffness = 2;
@@ -142,6 +144,7 @@ var ang = 0;
 class Pivot {
   constructor(s1, s2, angle, deadzone) {
     this.id = 0;
+    this.owner = null;
     
     this.startStick = s1;
     this.endStick = s2;
@@ -372,6 +375,38 @@ function intersects(s_source, s_dest) {
   }
 };
 
+function pointInEntity(point, entity) {
+  let ret = [];
+  var x = point.x, y = point.y;
+  var inside = false;
+  let vs = entity.sticks;
+  var len = vs.length;
+  for (var i = 0; i < len; i++) {
+      var xi = vs[i].startPoint.pos.x, yi = vs[i].startPoint.pos.y;
+      var xj = vs[i].endPoint.pos.x, yj = vs[i].endPoint.pos.y;
+      var intersect = ((yi > y) !== (yj > y))
+          && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+      if (intersect) { inside = !inside; ret.push(vs[i]); };
+  }
+  return { inside: inside, sticks: ret };
+};
+
+function getProjectedPointOnLine(p, v1, v2)
+{
+  // get dot product of e1, e2
+  let e1 = new Vector(v2.x - v1.x, v2.y - v1.y);
+  let e2 = new Vector(p.x - v1.x, p.y - v1.y);
+  let valDp = Vector.dot(e1, e2);
+  // get length of vectors
+  let lenLineE1 = Math.sqrt(e1.x * e1.x + e1.y * e1.y);
+  let lenLineE2 = Math.sqrt(e2.x * e2.x + e2.y * e2.y);
+  let cos = valDp / (lenLineE1 * lenLineE2);
+  // length of v1P'
+  let projLenOfLine = cos * lenLineE2;
+  return new Vector((v1.x + (projLenOfLine * e1.x) / lenLineE1),
+                      (v1.y + (projLenOfLine * e1.y) / lenLineE1));
+}
+
 let entity_cnt = 0;
 class Entity {
   constructor(iterations) {
@@ -394,18 +429,21 @@ class Entity {
   addDot(x, y, vx, vy, color) {
     let n_dot = new Dot(x, y, vx, vy, color);
     n_dot.id = `d_${this.id}_${this.dots.length}`;
+    n_dot.owner = this;
     this.dots.push(n_dot);
   }
 
   addStick(p1, p2, length) {
     let n_stick = new Stick(this.dots[p1], this.dots[p2], length);
     n_stick.id = `s_${this.id}_${this.sticks.length}`;
+    n_stick.owner = this;
     this.sticks.push(n_stick);
   }
 
   addPivot(s1, s2, deadzone) {
     let n_pivot = new Pivot(this.sticks[s1], this.sticks[s2], null, deadzone);
     n_pivot.id = `p_${this.id}_${this.pivots.length}`;
+    n_pivot.owner = this;
     this.pivots.push(n_pivot);
   }
 
@@ -487,9 +525,17 @@ class Entity {
       this.updateSticks();
       this.updatePivots(j);
       this.updateContrains();
+      this.updateCollisions();
     }
 
     this.pivotCnt = 0;
+  }
+
+  updateCollisions() {
+    for (var o of objects) {
+      if (o.id != this.id)
+        this.collision(o);
+    }
   }
 
   render(ctx) {
@@ -518,6 +564,7 @@ class Entity {
   }
 
   collision(other) {
+    
     let isColliding = false;
 
     let this_sticks = [];
@@ -526,37 +573,110 @@ class Entity {
     for (var s_source of this.sticks) {
       for (var s_dest of other.sticks) {
         if (intersects(s_source, s_dest)) {
-          isColliding = true;
-          s_source.color = '#f00';
-          s_dest.color = '#f00';
-
           if (!this_sticks.find(t => t.id == s_source.id)) this_sticks.push(s_source);
           if (!other_sticks.find(t => t.id == s_dest.id)) other_sticks.push(s_dest);
         }
       }
     }
 
-    if (isColliding) {
-      let this_points = [];
-      for (var s of this_sticks) {
-        if (!this_points.find(p => p.id == s.startPoint.id)) this_points.push(s.startPoint);
-        if (!this_points.find(p => p.id == s.endPoint.id)) this_points.push(s.endPoint);
+    for (var p of this.dots) {
+      let ret = pointInEntity(p.pos, other);
+      if (ret.inside) {
+        for (var s of other_sticks) {
+          let pp = getProjectedPointOnLine(p.pos, s.startPoint.pos, s.endPoint.pos);
+
+          // calculate the distance between two dots
+          let dx = p.pos.x - pp.x;
+          let dy = p.pos.y - pp.y;
+          // pythagoras theorem
+          let dist = Math.sqrt(dx * dx + dy * dy);
+          dist = Math.min(10, dist);
+          // calculate the resting distance betwen the dots
+          let diff = (0 - dist) * 0.05;
+          //console.log(dist);
+
+          // getting the offset of the dots
+          let ox = dx * diff * 0.5;
+          let oy = dy * diff * 0.5;
+
+          if (!p.pinned) {
+            p.pos.x += ox;
+            p.pos.y += oy;
+          }
+
+
+          /// Position stick
+
+          let diff_A = Vector.sub(pp, s.startPoint.pos);
+          let lenLineA = diff_A.mag();
+
+          let m1 = s.length;
+          let m2 = lenLineA / m1;
+          m1 = (s.length - lenLineA) / m1;
+
+
+          if (!s.startPoint.pinned) {
+            s.startPoint.pos.x -= ox * m1;
+            s.startPoint.pos.y -= oy * m1;
+          }
+
+          if (!s.endPoint.pinned) {
+            s.endPoint.pos.x -= ox * m2;
+            s.endPoint.pos.y -= oy * m2;
+          }
+
+
+          /*
+          let valDp = Vector.dot(diff_A, diff_B);
+        
+          let lenLineE1 = diff_A.mag();
+          let lenLineE2 = diff_B.mag();
+          let cos = valDp / (lenLineE1 * lenLineE2);
+        
+          let sin = Math.sqrt(1 - (cos * cos));
+          */
+        /*
+          let diff_A = Vector.sub(p.pos, pp);
+          let lenLineA = diff_A.mag() * 0.5;
+
+          let diff_B = Vector.sub(s.startPoint.pos, s.endPoint.pos);
+
+          let angle = Vector.heading(diff_A, diff_B);
+
+          let ox = Math.cos(angle) * lenLineA;
+          let oy = Math.sin(angle) * lenLineA;
+          console.log(angle / Math.PI * 180, lenLineA, ox, oy);
+*/
+
+
+
+
+          ctx.beginPath();
+          ctx.fillStyle = '#0ff';
+          ctx.arc(pp.x, pp.y, 5, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.closePath();
+        }
+        p.color = '#ff0';
       }
-
-      console.log(this_points);
     }
-
-    console.log(this_sticks, other_sticks);
-
   }
 }
 
+let objects = [];
+/*
+let ground = createBox(10, 850, 1000, 200);
+for (var p of ground.dots)
+  p.pinned = true;
+*/
+/*
 let box = new Entity(20);
+objects.push(box);
 
 box.addDot(250, 400 + 300, 0, 0, '#f00');
 box.addDot(350, 250 + 300, 0, 0, '#00f');
 box.addDot(400, 350 + 300, 0, 0, '#0f0');
-box.addDot(450, 280 + 300, 0, 0, '#f00');
+box.addDot(450, 250 + 300, 0, 0, '#f00');
 box.addDot(500, 400 + 300, 0, 0, '#f00');
 
 box.pinPoint(0);
@@ -575,6 +695,7 @@ box.addPivot(3, 4);
 box.addPivot(4, 0);
 
 let box2 = new Entity(20);
+objects.push(box2);
 box2.addDot(-50 + 300, 200 + 300);
 box2.addDot(-50 + 600, 200 + 300, 0, 0, '#00f');
 box2.addDot(-50 + 600, 200 + 400, 0, 0, '#0f0');
@@ -584,7 +705,7 @@ box2.addStick(0, 1);
 box2.addStick(1, 2);
 box2.addStick(2, 3);
 box2.addStick(3, 0);
-/*
+
 box2.addPivot(0, 1);
 box2.addPivot(1, 2);
 box2.addPivot(2, 3);
@@ -597,7 +718,6 @@ box2.addPivot(3, 0);
 
 let stop = false;
 
-let objects = [box, box2];
 
 function animate() {
   ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -606,15 +726,13 @@ function animate() {
   for (var oIdx in objects) {
     let oVal = objects[oIdx];
     oVal.update(ctx);
-
-    for (var dIdx = oIdx; dIdx < objects.length; dIdx++) {
-      if (dIdx > oIdx) {
+/*
+    for (var dIdx in objects) {
+      if (dIdx != oIdx) {
         let ret = oVal.collision(objects[dIdx]);
-        console.log(ret);
       }
-        
     }
-
+*/
     oVal.render(ctx);
   }
 
@@ -627,8 +745,73 @@ function Stop() { stop = true; }
 
 let selectedDot = null;
 
+var span_mouse_x = document.getElementById("mouse_x");
+var span_mouse_y = document.getElementById("mouse_y");
+
+canvas.addEventListener("mousemove", function(e) {
+  span_mouse_x.innerHTML = e.clientX;
+  span_mouse_y.innerHTML = e.clientY;
+});
+
+function computeCollision() {
+  for (var oIdx in objects) {
+    let oVal = objects[oIdx];
+    for (var dIdx in objects) {
+      if (dIdx != oIdx) {
+        let ret = oVal.collision(objects[dIdx]);
+        console.log(ret);
+      }
+    }
+  }
+}
+
+
+function computeExample() {
+  let diff_A = Vector.sub(box.dots[0].pos, box.dots[1].pos);
+  let diff_B = Vector.sub(box.dots[2].pos, box.dots[3].pos);
+  let valDp = Vector.dot(diff_A, diff_B);
+
+  let lenLineE1 = diff_A.mag();
+  let lenLineE2 = diff_B.mag();
+  let cos = valDp / (lenLineE1 * lenLineE2);
+
+  let sin = Math.sqrt(1 - (cos * cos));
+
+  let angle = Vector.heading(diff_A, diff_B);
+
+
+
+  console.log(diff_A, diff_B, cos, Math.cos(angle), sin, Math.sin(angle));
+}
+
+function createBox(x, y, w, h) {
+  w = w ?? 100;
+  h = h ?? 100;
+
+  let n_box = new Entity(20);
+  n_box.addDot(x, y);
+  n_box.addDot(x + w, y);
+  n_box.addDot(x + w, y + h);
+  n_box.addDot(x, y + h);
+
+  n_box.addStick(0, 1);
+  n_box.addStick(1, 2);
+  n_box.addStick(2, 3);
+  n_box.addStick(3, 0);
+
+  n_box.addPivot(0, 1);
+  n_box.addPivot(1, 2);
+  n_box.addPivot(2, 3);
+  n_box.addPivot(3, 0);
+
+  objects.push(n_box);
+  return n_box;
+}
+
 canvas.addEventListener("mousedown", function (e) {
   e.preventDefault();
+
+  ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
   let cx = e.clientX;
   let cy = e.clientY;
@@ -649,19 +832,20 @@ canvas.addEventListener("mousedown", function (e) {
     selectedDot.pos.x = cx;
     selectedDot.pos.y = cy;
     selectedDot.freeze();
-  } else if (e.button == 1) {
-    for (var oIdx in objects) {
-      let oVal = objects[oIdx];
-      for (var dIdx = oIdx; dIdx < objects.length; dIdx++) {
-        if (dIdx > oIdx) {
-          let ret = oVal.collision(objects[dIdx]);
-          console.log(ret);
-        }
-      }
+
+    for (var s of selectedDot.owner.sticks) {
+      s.calculate();
     }
+
+    for (var p of selectedDot.owner.pivots) {
+      p.calculate();
+    }
+  } else if (e.button == 1) {
+    //computeCollision();
+    //computeExample();
+    createBox(cx, cy);
   }
 
-  ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
   if (selectedDot) {
     ctx.beginPath();

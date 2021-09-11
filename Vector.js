@@ -33,6 +33,14 @@ Vector.random2D = function (v) {
   return Vector.fromAngle(Math.random() * Math.PI * 180);
 }
 
+Vector.dot = function (v1, v2) {
+  return v1.x * v2.x + v1.y * v2.y;
+}
+
+Vector.heading = function (v1, v2) {
+  return Math.atan2(v1.x*v2.y-v1.y*v2.x,v1.x*v2.x+v1.y*v2.y);
+}
+
 Vector.prototype = {
   add: function (x, y) {
     if (arguments.length === 1) {

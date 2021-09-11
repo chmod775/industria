@@ -26,6 +26,12 @@
         top: 10px;
         font-weight: bold;
       }
+
+      .debug {
+        position: absolute;
+        right: 10px;
+        top: 10px;
+      }
     </style>
   </head>
   <body>
@@ -33,6 +39,11 @@
     <div class="info">
       <p>Left click: Add point</p>
       <p>Right click: Terminate editing and start simulation</p>
+    </div>
+
+    <div class="debug">
+      <p>X: <span id="mouse_x"></span></p>
+      <p>Y: <span id="mouse_y"></span></p>
     </div>
 
     <canvas id="c"></canvas>
